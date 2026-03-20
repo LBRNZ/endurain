@@ -1,7 +1,7 @@
 """OneLapFit integration API routes."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Callable
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Security
 from sqlalchemy.orm import Session
@@ -28,14 +28,6 @@ router = APIRouter()
 @router.put("/link")
 async def onelapfit_link(
     credentials: onelapfit_schema.OneLapFitClient,
-    _validate_access_token: Annotated[
-        Callable,
-        Depends(auth_security.validate_access_token),
-    ],
-    _check_scopes: Annotated[
-        Callable,
-        Security(auth_security.check_scopes, scopes=["profile"]),
-    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
 ):
@@ -140,14 +132,6 @@ async def onelapfit_link(
 
 @router.get("/activities")
 async def get_onelapfit_activities(
-    _validate_access_token: Annotated[
-        Callable,
-        Depends(auth_security.validate_access_token),
-    ],
-    _check_scopes: Annotated[
-        Callable,
-        Security(auth_security.check_scopes, scopes=["profile"]),
-    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
     start_date: datetime = None,
@@ -226,14 +210,6 @@ async def get_onelapfit_activities(
 
 @router.delete("/unlink")
 async def unlink_onelapfit(
-    _validate_access_token: Annotated[
-        Callable,
-        Depends(auth_security.validate_access_token),
-    ],
-    _check_scopes: Annotated[
-        Callable,
-        Security(auth_security.check_scopes, scopes=["profile"]),
-    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
 ):
