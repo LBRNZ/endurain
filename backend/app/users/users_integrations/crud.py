@@ -454,6 +454,7 @@ def edit_user_integrations(
 
 
 @core_decorators.handle_db_errors
+@core_decorators.handle_db_errors
 def link_onelapfit_account(
     user_integrations: user_integrations_models.UsersIntegrations,
     token: str,

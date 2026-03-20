@@ -43,12 +43,22 @@ async def onelapfit_link(
         Success message or error
     """
     try:
+        core_logger.print_to_log(
+            f"User {user_id}: Starting OneLapFit link process"
+        )
+        
         # Get or create user integrations
+        core_logger.print_to_log(
+            f"User {user_id}: Fetching user integrations"
+        )
         user_integrations = (
             user_integrations_crud.get_user_integrations_by_user_id(user_id, db)
         )
         
         if user_integrations is None:
+            core_logger.print_to_log(
+                f"User {user_id}: Creating new user integrations record"
+            )
             user_integrations = (
                 user_integrations_crud.create_user_integrations(
                     user_id=user_id,
@@ -56,14 +66,30 @@ async def onelapfit_link(
                 )
             )
         
+        core_logger.print_to_log(
+            f"User {user_id}: User integrations ready, attempting login"
+        )
+        
         # Login to OneLapFit
+        core_logger.print_to_log(
+            f"User {user_id}: Attempting OneLapFit login with email {credentials.email}"
+        )
         token = await onelapfit_utils.login_onelapfit(
             email=credentials.email,
             password=credentials.password,
         )
+        core_logger.print_to_log(
+            f"User {user_id}: OneLapFit login successful, received token"
+        )
         
         # Encrypt and store token
+        core_logger.print_to_log(
+            f"User {user_id}: Encrypting and storing token"
+        )
         encrypted_token = core_cryptography.encrypt_token_fernet(token)
+        core_logger.print_to_log(
+            f"User {user_id}: Calling link_onelapfit_account CRUD function"
+        )
         user_integrations_crud.link_onelapfit_account(
             user_integrations=user_integrations,
             token=encrypted_token,
@@ -178,7 +204,7 @@ async def get_onelapfit_activities(
 
 @router.delete("/unlink", dependencies=[Security(auth_security.check_scopes, scopes=["profile"])])
 async def unlink_onelapfit(
-    user_id: Annotated[int, Depends(auth_security.validate_access_token)],
+    user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
 ):
     """
