@@ -92,9 +92,12 @@ async def onelapfit_link(
         
         # Encrypt and store token
         core_logger.print_to_log(
-            f"User {user_id}: Encrypting and storing token"
+            f"User {user_id}: Encrypting token (length: {len(token) if token else 0})"
         )
         encrypted_token = core_cryptography.encrypt_token_fernet(token)
+        core_logger.print_to_log(
+            f"User {user_id}: Token encrypted successfully (length: {len(encrypted_token)})"
+        )
         core_logger.print_to_log(
             f"User {user_id}: Calling link_onelapfit_account CRUD function"
         )
@@ -102,6 +105,9 @@ async def onelapfit_link(
             user_integrations=user_integrations,
             token=encrypted_token,
             db=db,
+        )
+        core_logger.print_to_log(
+            f"User {user_id}: CRUD function returned successfully"
         )
         
         core_logger.print_to_log(

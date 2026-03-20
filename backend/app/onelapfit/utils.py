@@ -41,9 +41,18 @@ async def login_onelapfit(email: str, password: str) -> str:
         HTTPException: If login fails
     """
     try:
+        core_logger.print_to_log(
+            f"OneLapFit login: Starting login process for email {email}"
+        )
         hashed_password = hash_password(password)
+        core_logger.print_to_log(
+            f"OneLapFit login: Password hashed successfully"
+        )
         
         async with httpx.AsyncClient() as client:
+            core_logger.print_to_log(
+                f"OneLapFit login: Creating HTTP request to {ONELAPFIT_API_BASE}/login"
+            )
             response = await client.post(
                 f"{ONELAPFIT_API_BASE}/login",
                 json={
@@ -51,6 +60,10 @@ async def login_onelapfit(email: str, password: str) -> str:
                     "password": hashed_password,
                 },
                 timeout=30.0,
+            )
+            
+            core_logger.print_to_log(
+                f"OneLapFit login: Received response with status {response.status_code}"
             )
             
             if response.status_code != 200:
@@ -63,7 +76,14 @@ async def login_onelapfit(email: str, password: str) -> str:
                     detail="OneLapFit login failed. Check your credentials.",
                 )
             
+            core_logger.print_to_log(
+                f"OneLapFit login: Parsing JSON response"
+            )
             data = response.json()
+            core_logger.print_to_log(
+                f"OneLapFit login: Response data code: {data.get('code')}"
+            )
+            
             if data.get("code") != 200:
                 core_logger.print_to_log(
                     f"OneLapFit API returned error: {data.get('error')}",
@@ -74,14 +94,26 @@ async def login_onelapfit(email: str, password: str) -> str:
                     detail=f"OneLapFit login failed: {data.get('error')}",
                 )
             
+            core_logger.print_to_log(
+                f"OneLapFit login: Extracting token from response"
+            )
             token = data.get("data", {}).get("token")
             if not token:
+                core_logger.print_to_log(
+                    f"OneLapFit login: No token in response data",
+                    "error",
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="No token returned from OneLapFit",
                 )
             
+            core_logger.print_to_log(
+                f"OneLapFit login: Token extracted successfully, length: {len(token)}"
+            )
             return token
+    except HTTPException:
+        raise
     except httpx.RequestError as err:
         core_logger.print_to_log(
             f"OneLapFit API request error: {err}",
