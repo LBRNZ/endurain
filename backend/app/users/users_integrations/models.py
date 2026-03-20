@@ -27,6 +27,7 @@ class UsersIntegrations(Base):
             data.
         garminconnect_sync_gear: Enable Garmin Connect gear
             synchronization.
+        onelapfit_token: Encrypted OneLapFit access token.
         user: Relationship to Users model.
     """
 
@@ -101,6 +102,12 @@ class UsersIntegrations(Base):
         nullable=False,
         default=False,
         comment="Whether Garmin Connect gear is to be synced",
+    )
+    onelapfit_token: Mapped[str | None] = mapped_column(
+        String(length=512),
+        default=None,
+        nullable=True,
+        comment=("OneLapFit access token encrypted at rest with Fernet key"),
     )
 
     # Define a relationship to the Users model
