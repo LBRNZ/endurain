@@ -82,7 +82,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the directory app contents to /app
 COPY backend/app ./
 
-# Copy the entrypoint script for starting the FastAPI app
+# Create the entrypoint directory and copy the script
+RUN mkdir -p /docker-entrypoint.d
 COPY docker/start.sh /docker-entrypoint.d/start.sh
 
 # Make the script executable
