@@ -428,7 +428,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { strava } from '@/services/stravaService'
 import { activities } from '@/services/activitiesService'
 import { garminConnect } from '@/services/garminConnectService'
-import { oneLapFit } from '@/services/onelapfitService'
+import { onelapfit } from '@/services/onelapfitService'
 import ModalComponent from '@/components/Modals/ModalComponent.vue'
 import ModalComponentNumberAndStringInput from '@/components/Modals/ModalComponentNumberAndStringInput.vue'
 import ModalComponentStringAndStringInput from '@/components/Modals/ModalComponentStringAndStringInput.vue'
@@ -596,7 +596,7 @@ async function buttonGarminConnectUnlink() {
 async function submitConnectOneLapFit(credentials) {
   const notification = push.promise(t('oneLapFitView.linkingMessage'))
   try {
-    await oneLapFit.linkOneLapFit(credentials.firstToEmit, credentials.secondToEmit)
+    await onelapfit.linkOneLapFit(credentials.firstToEmit, credentials.secondToEmit)
     const user = authStore.user
     user.is_onelapfit_linked = 1
     authStore.setUser(user, locale)
@@ -609,7 +609,7 @@ async function submitConnectOneLapFit(credentials) {
 async function submitRetrieveOneLapFitActivitiesDays(days) {
   try {
     const dates = getStartAndEndDateFromDaysAgo(days)
-    await oneLapFit.getOneLapFitActivitiesByDates(dates.startDate, dates.endDate)
+    await onelapfit.getOneLapFitActivitiesByDates(dates.startDate, dates.endDate)
     push.info(t('oneLapFitView.retrievingActivitiesMessage'))
   } catch (error) {
     push.error(`${t('oneLapFitView.retrievingActivitiesError')} - ${error}`)
@@ -618,7 +618,7 @@ async function submitRetrieveOneLapFitActivitiesDays(days) {
 
 async function submitRetrieveOneLapFitActivitiesDataRange(dateRange) {
   try {
-    await oneLapFit.getOneLapFitActivitiesByDates(dateRange.startDate, dateRange.endDate)
+    await onelapfit.getOneLapFitActivitiesByDates(dateRange.startDate, dateRange.endDate)
     push.info(t('oneLapFitView.retrievingActivitiesMessage'))
   } catch (error) {
     push.error(`${t('oneLapFitView.retrievingActivitiesError')} - ${error}`)
@@ -628,7 +628,7 @@ async function submitRetrieveOneLapFitActivitiesDataRange(dateRange) {
 async function buttonOneLapFitUnlink() {
   const notification = push.promise(t('oneLapFitView.unlinkingMessage'))
   try {
-    await oneLapFit.unlinkOneLapFit()
+    await onelapfit.unlinkOneLapFit()
     const user = authStore.user
     user.is_onelapfit_linked = 0
     authStore.setUser(user, locale)
