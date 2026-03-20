@@ -25,9 +25,17 @@ import websocket.manager as websocket_manager
 router = APIRouter()
 
 
-@router.put("/link", dependencies=[Security(auth_security.check_scopes, scopes=["profile"])])
+@router.put("/link")
 async def onelapfit_link(
     credentials: onelapfit_schema.OneLapFitClient,
+    _validate_access_token: Annotated[
+        None,
+        Depends(auth_security.validate_access_token),
+    ],
+    _check_scopes: Annotated[
+        None,
+        Security(auth_security.check_scopes, scopes=["profile"]),
+    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
 ):
@@ -124,8 +132,16 @@ async def onelapfit_link(
         ) from err
 
 
-@router.get("/activities", dependencies=[Security(auth_security.check_scopes, scopes=["profile"])])
+@router.get("/activities")
 async def get_onelapfit_activities(
+    _validate_access_token: Annotated[
+        None,
+        Depends(auth_security.validate_access_token),
+    ],
+    _check_scopes: Annotated[
+        None,
+        Security(auth_security.check_scopes, scopes=["profile"]),
+    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
     start_date: datetime = None,
@@ -202,8 +218,16 @@ async def get_onelapfit_activities(
         ) from err
 
 
-@router.delete("/unlink", dependencies=[Security(auth_security.check_scopes, scopes=["profile"])])
+@router.delete("/unlink")
 async def unlink_onelapfit(
+    _validate_access_token: Annotated[
+        None,
+        Depends(auth_security.validate_access_token),
+    ],
+    _check_scopes: Annotated[
+        None,
+        Security(auth_security.check_scopes, scopes=["profile"]),
+    ],
     user_id: Annotated[int, Depends(auth_security.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],
 ):
