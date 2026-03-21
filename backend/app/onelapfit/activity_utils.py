@@ -309,6 +309,9 @@ def parse_activity(
         else:
             avg_speed = 0.0
         
+        # Calculate pace (s/m) from average speed
+        average_pace = 1 / avg_speed if avg_speed > 0 else None
+        
         # Get power metrics if available
         avg_watts = activity_info.get("AP", 0) or None
         normalized_power = activity_info.get("NP", 0) or None
@@ -339,6 +342,7 @@ def parse_activity(
             total_timer_time=float(moving_time),  # in seconds
             elevation_gain=int(elevation_gain) if elevation_gain else None,
             elevation_loss=None,  # Not provided by OneLapFit
+            pace=average_pace,
             average_speed=avg_speed if avg_speed > 0 else None,
             max_speed=None,  # Not provided by OneLapFit
             average_power=int(avg_watts) if avg_watts else None,
