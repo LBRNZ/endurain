@@ -168,20 +168,20 @@ async def process_activity(
     """
     try:
         # Parse activity data
-        activity_dict = parse_activity(
+        activity_to_store = parse_activity(
             activity_info=activity_info,
             user_id=user_id,
             user_privacy_settings=user_privacy_settings,
             db=db,
         )
         
-        if activity_dict is None:
+        if activity_to_store is None:
             return None
         
-        # Create or update activity in database
-        activity = activities_crud.create_activity(
-            activity=activities_schema.ActivityCreate(**activity_dict),
-            user_id=user_id,
+        # Create activity in database
+        activity = await activities_crud.create_activity(
+            activity=activity_to_store,
+            websocket_manager=ws_manager,
             db=db,
         )
         
@@ -231,9 +231,9 @@ def parse_activity(
     user_id: int,
     user_privacy_settings: users_privacy_settings_models.UsersPrivacySettings,
     db: Session,
-) -> Optional[dict]:
+) -> Optional[activities_schema.Activity]:
     """
-    Parse OneLapFit activity data into Activity model format.
+    Parse OneLapFit activity data into Activity schema format.
 
     Args:
         activity_info: Raw activity info from OneLapFit API
@@ -242,7 +242,7 @@ def parse_activity(
         db: Database session
 
     Returns:
-        Dict with activity data ready for database insertion or None if invalid
+        Activity schema object ready for database insertion or None if invalid
     """
     try:
         # Extract basic activity info
@@ -254,68 +254,79 @@ def parse_activity(
         
         # Create datetime from Unix timestamp
         activity_date = datetime.fromtimestamp(start_time, tz=timezone.utc)
+        end_date = datetime.fromtimestamp(start_time + elapsed_time, tz=timezone.utc)
         
         # Find timezone
-        tf = TimezoneFinder()
         tz_str = core_config.TZ
         
-        # Determine activity type
-        activity_type = "Ride"  # OneLapFit is currently for cycling
+        # Determine activity type (1 = Ride for cycling)
+        activity_type = 1  # OneLapFit is currently for cycling
         
-        # Calculate speed if available
+        # Calculate speed if available (in m/s for average_speed field)
         if moving_time > 0 and distance > 0:
-            avg_speed = (distance / 1000) / (moving_time / 3600)  # km/h
+            avg_speed = distance / moving_time  # m/s
         else:
-            avg_speed = 0
+            avg_speed = 0.0
         
-        # Calculate power metrics if available
-        avg_watts = activity_info.get("AP", 0)
-        normalized_power = activity_info.get("NP", 0)
-        ftp = activity_info.get("FTP", 0)
-        tss = activity_info.get("TSS", 0)
+        # Get power metrics if available
+        avg_watts = activity_info.get("AP", 0) or None
+        normalized_power = activity_info.get("NP", 0) or None
+        tss = activity_info.get("TSS", 0) or None
+        calories = activity_info.get("cal", 0) or None
         
-        # Prepare activity dictionary
-        activity_dict = {
-            "name": activity_info.get("name", f"{activity_type} - {activity_date.strftime('%Y-%m-%d')}"),
-            "type": activity_type,
-            "start_date": activity_date,
-            "elapsed_time": elapsed_time,
-            "moving_time": moving_time,
-            "distance": distance / 1000,  # Convert to km
-            "elevation_gain": elevation_gain,
-            "elevation_loss": 0,  # Not provided by OneLapFit
-            "max_elevation": None,
-            "min_elevation": None,
-            "avg_speed": avg_speed,
-            "max_speed": 0,
-            "avg_heartrate": 0,
-            "max_heartrate": 0,
-            "avg_watts": avg_watts,
-            "normalized_power": normalized_power,
-            "ftp": ftp,
-            "tss": tss,
-            "calories": activity_info.get("cal", 0),
-            "kudos_count": 0,
-            "comment_count": 0,
-            "athlete_count": None,
-            "visibility": users_privacy_settings_utils.visibility_to_int(
-                user_privacy_settings.default_activity_visibility
-            ),
-            "timezone": tz_str,
-            "onelapfit_id": activity_info.get("fileKey", "").replace(".fit", ""),
-        }
-        
-        # Check if activity already exists
+        # Check if activity already exists before creating
+        onelapfit_id = activity_info.get("fileKey", "").replace(".fit", "")
         existing = activities_crud.get_activity_by_onelapfit_id_from_user_id(
-            activity_dict["onelapfit_id"], user_id, db
+            onelapfit_id, user_id, db
         )
         if existing:
             core_logger.print_to_log(
-                f"User {user_id}: Activity {activity_dict['onelapfit_id']} already exists"
+                f"User {user_id}: Activity {onelapfit_id} already exists"
             )
             return None
         
-        return activity_dict
+        # Create Activity schema object
+        activity_to_store = activities_schema.Activity(
+            user_id=user_id,
+            name=activity_info.get("name", f"Ride - {activity_date.strftime('%Y-%m-%d')}"),
+            distance=int(distance),  # in meters
+            activity_type=activity_type,
+            start_time=activity_date.strftime("%Y-%m-%dT%H:%M:%S"),
+            end_time=end_date.strftime("%Y-%m-%dT%H:%M:%S"),
+            timezone=tz_str,
+            total_elapsed_time=float(elapsed_time),  # in seconds
+            total_timer_time=float(moving_time),  # in seconds
+            elevation_gain=int(elevation_gain) if elevation_gain else None,
+            elevation_loss=None,  # Not provided by OneLapFit
+            average_speed=avg_speed if avg_speed > 0 else None,
+            max_speed=None,  # Not provided by OneLapFit
+            average_power=int(avg_watts) if avg_watts else None,
+            max_power=None,  # Not provided by OneLapFit
+            normalized_power=int(normalized_power) if normalized_power else None,
+            average_hr=None,  # Not provided by OneLapFit
+            max_hr=None,  # Not provided by OneLapFit
+            average_cad=None,  # Not provided by OneLapFit
+            max_cad=None,  # Not provided by OneLapFit
+            calories=int(calories) if calories else None,
+            visibility=users_privacy_settings_utils.visibility_to_int(
+                user_privacy_settings.default_activity_visibility
+            ),
+            onelapfit_id=onelapfit_id,
+            hide_start_time=user_privacy_settings.hide_activity_start_time or False,
+            hide_location=user_privacy_settings.hide_activity_location or False,
+            hide_map=user_privacy_settings.hide_activity_map or False,
+            hide_hr=user_privacy_settings.hide_activity_hr or False,
+            hide_power=user_privacy_settings.hide_activity_power or False,
+            hide_cadence=user_privacy_settings.hide_activity_cadence or False,
+            hide_elevation=user_privacy_settings.hide_activity_elevation or False,
+            hide_speed=user_privacy_settings.hide_activity_speed or False,
+            hide_pace=user_privacy_settings.hide_activity_pace or False,
+            hide_laps=user_privacy_settings.hide_activity_laps or False,
+            hide_workout_sets_steps=user_privacy_settings.hide_activity_workout_sets_steps or False,
+            hide_gear=user_privacy_settings.hide_activity_gear or False,
+        )
+        
+        return activity_to_store
     except Exception as err:
         core_logger.print_to_log(
             f"User {user_id}: Error parsing OneLapFit activity: {str(err)}",
