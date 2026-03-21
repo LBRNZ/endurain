@@ -202,7 +202,7 @@ async def process_activity(
         
         # Notify via WebSocket
         try:
-            await ws_manager.broadcast_user(
+            await ws_manager.send_message(
                 user_id=user_id,
                 message={
                     "type": "activity_imported",
@@ -298,8 +298,8 @@ def parse_activity(
             "kudos_count": 0,
             "comment_count": 0,
             "athlete_count": None,
-            "visibility": users_privacy_settings_utils.get_activity_visibility(
-                user_privacy_settings
+            "visibility": users_privacy_settings_utils.visibility_to_int(
+                user_privacy_settings.default_activity_visibility
             ),
             "timezone": tz_str,
             "onelapfit_id": activity_info.get("fileKey", "").replace(".fit", ""),

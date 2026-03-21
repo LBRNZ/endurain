@@ -294,7 +294,7 @@ async def _fetch_activities_background(
         )
         
         # Notify user via WebSocket
-        await ws_manager.broadcast_user(
+        await ws_manager.send_message(
             user_id=user_id,
             message={
                 "type": "sync_complete",
