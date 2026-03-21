@@ -178,6 +178,10 @@ async def get_onelapfit_activities(
             user_integrations.onelapfit_token
         )
         
+        core_logger.print_to_log(
+            f"User {user_id}: Adding background task for activity sync"
+        )
+        
         # Add background task to fetch activities
         background_tasks.add_task(
             _fetch_activities_background,
@@ -188,6 +192,10 @@ async def get_onelapfit_activities(
             user_integrations=user_integrations,
             ws_manager=ws_manager,
             db=db,
+        )
+        
+        core_logger.print_to_log(
+            f"User {user_id}: Background task added, returning response"
         )
         
         return {
@@ -267,6 +275,9 @@ async def _fetch_activities_background(
         db: Database session
     """
     try:
+        core_logger.print_to_log(
+            f"User {user_id}: Background task started - fetching activities from {start_date} to {end_date}"
+        )
         count = await onelapfit_activity_utils.fetch_and_process_activities(
             token=token,
             start_date=start_date,
