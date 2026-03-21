@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from io import BytesIO
 import logging
+import tempfile
+import os
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -16,6 +18,8 @@ import core.config as core_config
 import activities.activity.schema as activities_schema
 import activities.activity.crud as activities_crud
 import activities.activity.utils as activities_utils
+import activities.activity_streams.schema as activity_streams_schema
+import activities.activity_streams.crud as activity_streams_crud
 
 import users.users_integrations.models as user_integrations_models
 import users.users.crud as users_crud
@@ -26,6 +30,8 @@ import users.users_privacy_settings.models as users_privacy_settings_models
 import users.users_privacy_settings.utils as users_privacy_settings_utils
 
 import gears.gear.crud as gears_crud
+
+import fit.utils as fit_utils
 
 import onelapfit.utils as onelapfit_utils
 
@@ -185,18 +191,53 @@ async def process_activity(
             db=db,
         )
         
-        # Download and store FIT file
+        # Download and parse FIT file
         try:
             fit_file_url = activity_info.get("fileAddr")
-            if fit_file_url:
+            if fit_file_url and activity.id:
                 fit_content = await onelapfit_utils.download_fit_file(fit_file_url)
-                # Store FIT file would go here (depends on your file storage system)
-                core_logger.print_to_log(
-                    f"User {user_id}: Downloaded FIT file for activity {activity.id}"
-                )
+                
+                # Save FIT content to a temporary file for parsing
+                with tempfile.NamedTemporaryFile(
+                    suffix=".fit", delete=False, mode="wb"
+                ) as temp_fit_file:
+                    temp_fit_file.write(fit_content)
+                    temp_fit_path = temp_fit_file.name
+                
+                try:
+                    # Parse FIT file to extract activity streams and metadata
+                    parsed_fit_data = fit_utils.parse_fit_file(
+                        temp_fit_path, db, activity_info.get("name", "Ride")
+                    )
+                    
+                    core_logger.print_to_log(
+                        f"User {user_id}: Parsed FIT file for activity {activity.id}"
+                    )
+                    
+                    # Extract and store activity streams
+                    activity_streams = activities_utils.parse_activity_streams_from_file(
+                        parsed_fit_data, activity.id
+                    )
+                    
+                    if activity_streams:
+                        activity_streams_crud.create_activity_streams(
+                            activity_streams, db
+                        )
+                        core_logger.print_to_log(
+                            f"User {user_id}: Stored {len(activity_streams)} activity streams for activity {activity.id}"
+                        )
+                finally:
+                    # Clean up temporary FIT file
+                    try:
+                        os.unlink(temp_fit_path)
+                    except Exception as err:
+                        core_logger.print_to_log(
+                            f"User {user_id}: Failed to delete temporary FIT file: {str(err)}",
+                            "warning",
+                        )
         except Exception as err:
             core_logger.print_to_log(
-                f"User {user_id}: Failed to download FIT file: {str(err)}",
+                f"User {user_id}: Failed to download/parse FIT file: {str(err)}",
                 "warning",
             )
         
