@@ -68,6 +68,9 @@ async def fetch_and_process_activities(
     
     try:
         # Fetch activities from OneLapFit
+        core_logger.print_to_log(
+            f"User {user_id}: Fetching OneLapFit activities for range {start_date} to {end_date}"
+        )
         activities_data = await onelapfit_utils.fetch_onelapfit_activities(
             token=token,
             start_time=start_time,
@@ -75,6 +78,9 @@ async def fetch_and_process_activities(
             page=0,
         )
         
+        core_logger.print_to_log(
+            f"User {user_id}: Received activities data: {activities_data}"
+        )
         onelapfit_activities = activities_data
     except Exception as err:
         core_logger.print_to_log(
@@ -91,7 +97,7 @@ async def fetch_and_process_activities(
     
     if not onelapfit_activities or not onelapfit_activities.get("days"):
         core_logger.print_to_log(
-            f"User {user_id}: No new OneLapFit activities found"
+            f"User {user_id}: No new OneLapFit activities found (activities_data: {onelapfit_activities})"
         )
         return 0
     

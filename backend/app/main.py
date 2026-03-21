@@ -1,9 +1,11 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi import status
 
 from alembic.config import Config
 from alembic import command
@@ -128,6 +130,33 @@ def shutdown_event():
     core_scheduler.stop_scheduler()
 
 
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Global exception handler to capture and log unhandled exceptions.
+    
+    This handler catches any exception not handled by route-specific error handlers
+    and ensures it's properly logged with full details for debugging.
+    
+    Args:
+        request: The incoming request
+        exc: The unhandled exception
+        
+    Returns:
+        JSONResponse with 500 status code and error details
+    """
+    core_logger.print_to_log(
+        f"Unhandled exception in {request.method} {request.url.path}: {exc}",
+        "error",
+        exc=exc,
+        context={"method": request.method, "path": request.url.path},
+    )
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error. Check logs for details."},
+    )
+
+
 def create_app() -> FastAPI:
     # Define the FastAPI object
     fastapi_app = FastAPI(
@@ -226,6 +255,9 @@ core_logger.setup_main_logger()
 
 # Setup tracing
 core_tracing.setup_tracing(app)
+
+# Register global exception handler for unhandled exceptions
+app.add_exception_handler(Exception, global_exception_handler)
 
 # Register the startup event handler
 app.add_event_handler("startup", startup_event)

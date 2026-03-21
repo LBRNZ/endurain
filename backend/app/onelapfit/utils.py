@@ -184,6 +184,10 @@ async def fetch_onelapfit_activities(
             "Authorization": token,
         }
         
+        core_logger.print_to_log(
+            f"OneLapFit activities: Fetching activities from {start_time} to {end_time}"
+        )
+        
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{ONELAPFIT_API_BASE}/record/riding/list",
@@ -198,6 +202,10 @@ async def fetch_onelapfit_activities(
                 timeout=30.0,
             )
             
+            core_logger.print_to_log(
+                f"OneLapFit activities: Received HTTP {response.status_code}"
+            )
+            
             if response.status_code != 200:
                 core_logger.print_to_log(
                     f"OneLapFit activities fetch failed with status {response.status_code}: {response.text}",
@@ -209,6 +217,10 @@ async def fetch_onelapfit_activities(
                 )
             
             data = response.json()
+            core_logger.print_to_log(
+                f"OneLapFit activities: Response code: {data.get('code')}, has data: {bool(data.get('data'))}"
+            )
+            
             if data.get("code") != 200:
                 core_logger.print_to_log(
                     f"OneLapFit API returned error: {data.get('error')}",
@@ -219,7 +231,11 @@ async def fetch_onelapfit_activities(
                     detail=f"OneLapFit API error: {data.get('error')}",
                 )
             
-            return data.get("data", {})
+            result = data.get("data", {})
+            core_logger.print_to_log(
+                f"OneLapFit activities: Returning data with keys: {list(result.keys()) if result else 'empty'}"
+            )
+            return result
     except httpx.RequestError as err:
         core_logger.print_to_log(
             f"OneLapFit activities fetch request error: {err}",

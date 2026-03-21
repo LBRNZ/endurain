@@ -2,8 +2,10 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.engine.url import URL
+from fastapi import HTTPException, status
 
 import core.config as core_config
+import core.logger as core_logger
 
 # Define the database connection URL using environment variables
 db_url = URL.create(
@@ -44,12 +46,22 @@ def get_db():
     Yields:
         Session: An active SQLAlchemy database session.
 
-    Example:
-        with get_db() as db:
-            # use db session here
+    Raises:
+        HTTPException: If database connection fails.
     """
-    # Create a new database session and return it
-    db = SessionLocal()
+    try:
+        # Create a new database session and return it
+        db = SessionLocal()
+    except Exception as err:
+        core_logger.print_to_log(
+            f"Database connection failed: {err}",
+            "error",
+            exc=err,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed",
+        ) from err
 
     try:
         # Yield the database session
