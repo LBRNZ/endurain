@@ -300,8 +300,9 @@ def parse_activity(
         # Find timezone
         tz_str = core_config.TZ
         
-        # Determine activity type (1 = Ride for cycling)
-        activity_type = 1  # OneLapFit is currently for cycling
+        # Determine activity type (4 = Ride for cycling)
+        # OneLapFit is currently for cycling, so we always set it to "Ride"
+        activity_type = activities_utils.define_activity_type("ride")
         
         # Calculate speed if available (in m/s for average_speed field)
         if moving_time > 0 and distance > 0:
