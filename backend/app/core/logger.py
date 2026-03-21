@@ -31,6 +31,7 @@ def setup_main_logger():
     main_logger = logging.getLogger("main_logger")
     main_logger.setLevel(log_level)
 
+    # File handler
     file_handler = logging.FileHandler(f"{core_config.LOGS_DIR}/app.log")
     file_handler.setLevel(log_level)
 
@@ -41,15 +42,26 @@ def setup_main_logger():
 
     main_logger.addHandler(file_handler)
 
-    # Attach the same handler to Alembic's logger
+    # Console handler (stdout) - for docker logs
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_formatter = logging.Formatter(
+        "%(levelname)s: %(message)s"
+    )
+    console_handler.setFormatter(console_formatter)
+    main_logger.addHandler(console_handler)
+
+    # Attach the same handlers to Alembic's logger
     alembic_logger = logging.getLogger("alembic")
     alembic_logger.setLevel(log_level)
     alembic_logger.addHandler(file_handler)
+    alembic_logger.addHandler(console_handler)
 
-    # Attach the same handler to sheduler's logger
+    # Attach the same handlers to scheduler's logger
     scheduler_logger = logging.getLogger("apscheduler")
     scheduler_logger.setLevel(log_level)
     scheduler_logger.addHandler(file_handler)
+    scheduler_logger.addHandler(console_handler)
 
     return main_logger
 
