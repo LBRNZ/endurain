@@ -74,12 +74,12 @@ async def onelapfit_link(
         core_logger.print_to_log(
             f"User {user_id}: Attempting OneLapFit login with email {credentials.email}"
         )
-        token = await onelapfit_utils.login_onelapfit(
+        token, region = await onelapfit_utils.login_onelapfit(
             email=credentials.email,
             password=credentials.password,
         )
         core_logger.print_to_log(
-            f"User {user_id}: OneLapFit login successful, received token"
+            f"User {user_id}: OneLapFit login successful, received token and region: {region}"
         )
         
         # Encrypt and store token
@@ -96,6 +96,7 @@ async def onelapfit_link(
         user_integrations_crud.link_onelapfit_account(
             user_integrations=user_integrations,
             token=encrypted_token,
+            region=region,
             db=db,
         )
         core_logger.print_to_log(

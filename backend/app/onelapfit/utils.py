@@ -1,6 +1,10 @@
 """OneLapFit utility functions for API interactions and token management."""
 
+import base64
 import hashlib
+import secrets
+import time
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import HTTPException, status
@@ -17,8 +21,163 @@ import users.users.crud as users_crud
 
 from core.database import SessionLocal
 
-# OneLapFit API base URL
-ONELAPFIT_API_BASE = "https://rfs-fitness.rfsvr.com/api/v1/app"
+# OneLapFit API base URLs
+ONELAPFIT_API_BASE = "https://api-fitness.rfsvr.com/api/v1/app"
+ONELAPFIT_ACCOUNT_API_BASE = "https://api-fitness.rfsvr.com/api/account/v1"
+
+# API Key for request signing
+ONELAPFIT_API_KEY = "6b14dcd729a8234487734f50c6335995"
+
+
+def generate_nonce() -> str:
+    """
+    Generate a random nonce for request signing.
+    6 random bytes → Base64 encoded → URL-encoded.
+    
+    Returns:
+        URL-encoded nonce string
+    """
+    random_bytes = secrets.token_bytes(6)
+    nonce_base64 = base64.b64encode(random_bytes).decode('ascii')
+    return urllib.parse.quote(nonce_base64, safe='')
+
+
+def create_signature(path: str, params: dict) -> str:
+    """
+    Create MD5 signature for API request.
+    
+    Args:
+        path: API path (e.g., "/api/v1/app/login")
+        params: Dictionary of query parameters (excluding nonce and timestamp which are added here)
+    
+    Returns:
+        MD5 signature string
+    """
+    # Sort params alphabetically by key
+    sorted_keys = sorted(params.keys())
+    
+    # Build query string (values should be decoded/unescaped)
+    query_parts = []
+    for key in sorted_keys:
+        value = params[key]
+        # Decode URL-encoded values for signing
+        decoded_value = urllib.parse.unquote(str(value))
+        query_parts.append(f"{key}={decoded_value}")
+    
+    query_string = "&".join(query_parts)
+    
+    # Build sign string: path?query_string&key=api_key
+    sign_string = f"{path}?{query_string}&key={ONELAPFIT_API_KEY}"
+    
+    # MD5 hash
+    signature = hashlib.md5(sign_string.encode('utf-8')).hexdigest()
+    
+    return signature
+
+
+async def get_region_code(email: str) -> str:
+    """
+    Fetch region code from OneLapFit API.
+    
+    Args:
+        email: User email address
+    
+    Returns:
+        Region code string
+    
+    Raises:
+        HTTPException: If region fetch fails
+    """
+    try:
+        path = "/api/account/v1/user/region"
+        nonce = generate_nonce()
+        timestamp = int(time.time())
+        
+        # Build params for signing (email, nonce, timestamp)
+        params = {
+            "email": email,
+            "nonce": nonce,
+            "timestamp": str(timestamp)
+        }
+        
+        # Create signature
+        signature = create_signature(path, params)
+        
+        core_logger.print_to_log(
+            f"OneLapFit region: Fetching region code for email {email}"
+        )
+        
+        # Build full URL with all params
+        full_params = {
+            "email": email,
+            "nonce": nonce,
+            "timestamp": timestamp,
+            "sign": signature
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{ONELAPFIT_ACCOUNT_API_BASE}/user/region",
+                params=full_params,
+                timeout=30.0,
+            )
+            
+            core_logger.print_to_log(
+                f"OneLapFit region: Received HTTP {response.status_code}"
+            )
+            
+            if response.status_code != 200:
+                core_logger.print_to_log(
+                    f"OneLapFit region fetch failed with status {response.status_code}: {response.text}",
+                    "error",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Failed to fetch region code from OneLapFit",
+                )
+            
+            data = response.json()
+            core_logger.print_to_log(
+                f"OneLapFit region: Response data: {data}"
+            )
+            
+            if data.get("code") != 200:
+                core_logger.print_to_log(
+                    f"OneLapFit region API returned error: {data.get('error')}",
+                    "error",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Failed to fetch region code: {data.get('error')}",
+                )
+            
+            region_code = data.get("data", {}).get("region")
+            if not region_code:
+                core_logger.print_to_log(
+                    f"OneLapFit region: No region code in response data",
+                    "error",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No region code returned from OneLapFit",
+                )
+            
+            core_logger.print_to_log(
+                f"OneLapFit region: Got region code: {region_code}"
+            )
+            return region_code
+    except HTTPException:
+        raise
+    except httpx.RequestError as err:
+        core_logger.print_to_log(
+            f"OneLapFit region API request error: {err}",
+            "error",
+            exc=err,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to connect to OneLapFit service",
+        ) from err
 
 
 def hash_password(password: str) -> str:
@@ -26,21 +185,24 @@ def hash_password(password: str) -> str:
     return hashlib.md5(password.encode()).hexdigest().lower()
 
 
-async def login_onelapfit(email: str, password: str) -> str:
+async def login_onelapfit(email: str, password: str) -> tuple[str, str]:
     """
     Login to OneLapFit and retrieve access token.
-
+    
     Args:
         email: User email address
         password: User password (will be MD5 hashed)
-
+    
     Returns:
-        Access token string
-
+        Tuple of (access_token, region_code)
+    
     Raises:
         HTTPException: If login fails
     """
     try:
+        # First, get the region code
+        region_code = await get_region_code(email)
+        
         core_logger.print_to_log(
             f"OneLapFit login: Starting login process for email {email}"
         )
@@ -49,12 +211,36 @@ async def login_onelapfit(email: str, password: str) -> str:
             f"OneLapFit login: Password hashed successfully"
         )
         
+        # Create signature for login request
+        path = "/api/v1/app/login"
+        nonce = generate_nonce()
+        timestamp = int(time.time())
+        
+        params = {
+            "nonce": nonce,
+            "timestamp": str(timestamp)
+        }
+        
+        signature = create_signature(path, params)
+        
         async with httpx.AsyncClient() as client:
             core_logger.print_to_log(
                 f"OneLapFit login: Creating HTTP request to {ONELAPFIT_API_BASE}/login"
             )
+            
+            # Build query params for login
+            query_params = {
+                "nonce": nonce,
+                "timestamp": timestamp,
+                "sign": signature
+            }
+            
             response = await client.post(
                 f"{ONELAPFIT_API_BASE}/login",
+                params=query_params,
+                headers={
+                    "region": region_code
+                },
                 json={
                     "account": email,
                     "password": hashed_password,
@@ -111,7 +297,7 @@ async def login_onelapfit(email: str, password: str) -> str:
             core_logger.print_to_log(
                 f"OneLapFit login: Token extracted successfully, length: {len(token)}"
             )
-            return token
+            return token, region_code
     except HTTPException:
         raise
     except httpx.RequestError as err:
@@ -180,8 +366,34 @@ async def fetch_onelapfit_activities(
         HTTPException: If API call fails
     """
     try:
-        headers = {
-            "Authorization": token,
+        # Create signature for activities request
+        path = "/api/v1/app/record/riding/list"
+        nonce = generate_nonce()
+        timestamp = int(time.time())
+        
+        # Build params for signing (all query params plus nonce and timestamp)
+        params = {
+            "start_time": str(start_time),
+            "end_time": str(end_time),
+            "p": str(page),
+            "source": "all",
+            "data_type": "all",
+            "nonce": nonce,
+            "timestamp": str(timestamp)
+        }
+        
+        signature = create_signature(path, params)
+        
+        # Build final params for request
+        request_params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "p": page,
+            "source": "all",
+            "data_type": "all",
+            "nonce": nonce,
+            "timestamp": timestamp,
+            "sign": signature
         }
         
         core_logger.print_to_log(
@@ -191,14 +403,10 @@ async def fetch_onelapfit_activities(
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{ONELAPFIT_API_BASE}/record/riding/list",
-                params={
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "p": page,
-                    "source": "all",
-                    "data_type": "all",
+                params=request_params,
+                headers={
+                    "Authorization": token
                 },
-                headers=headers,
                 timeout=30.0,
             )
             
@@ -268,20 +476,41 @@ async def fetch_onelapfit_overview(
         end_time = int(datetime.now(timezone.utc).timestamp())
     
     try:
-        headers = {
-            "Authorization": token,
+        # Create signature for overview request
+        path = "/api/v1/app/record/riding/overview"
+        nonce = generate_nonce()
+        timestamp = int(time.time())
+        
+        # Build params for signing
+        params = {
+            "start_time": str(start_time),
+            "end_time": str(end_time),
+            "source": "table",
+            "data_type": "all",
+            "nonce": nonce,
+            "timestamp": str(timestamp)
+        }
+        
+        signature = create_signature(path, params)
+        
+        # Build final params for request
+        request_params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "source": "table",
+            "data_type": "all",
+            "nonce": nonce,
+            "timestamp": timestamp,
+            "sign": signature
         }
         
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{ONELAPFIT_API_BASE}/record/riding/overview",
-                params={
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "source": "table",
-                    "data_type": "all",
+                params=request_params,
+                headers={
+                    "Authorization": token
                 },
-                headers=headers,
                 timeout=30.0,
             )
             

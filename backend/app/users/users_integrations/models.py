@@ -109,6 +109,12 @@ class UsersIntegrations(Base):
         nullable=True,
         comment=("OneLapFit access token encrypted at rest with Fernet key"),
     )
+    onelapfit_region: Mapped[str | None] = mapped_column(
+        String(length=10),
+        default=None,
+        nullable=True,
+        comment="OneLapFit region code",
+    )
 
     # Define a relationship to the Users model
     # TODO: Change to Mapped["User"] when all modules use mapped

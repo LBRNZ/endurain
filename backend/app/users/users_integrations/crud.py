@@ -457,15 +457,17 @@ def edit_user_integrations(
 def link_onelapfit_account(
     user_integrations: user_integrations_models.UsersIntegrations,
     token: str,
-    db: Session,
+    region: str | None = None,
+    db: Session = None,
 ) -> None:
     """
-    Link a OneLapFit account by storing access token.
+    Link a OneLapFit account by storing access token and region.
 
     Args:
         user_integrations: The UsersIntegrations ORM model to
             update.
         token: Encrypted OneLapFit access token.
+        region: OneLapFit region code.
         db: SQLAlchemy database session.
 
     Returns:
@@ -474,8 +476,10 @@ def link_onelapfit_account(
     Raises:
         HTTPException: 500 error if database operation fails.
     """
-    # Update the user integrations with the token
+    # Update the user integrations with the token and region
     user_integrations.onelapfit_token = token
+    if region:
+        user_integrations.onelapfit_region = region
 
     # Commit the changes to the database
     db.commit()
@@ -509,6 +513,7 @@ def unlink_onelapfit_account(user_id: int, db: Session) -> None:
 
     # Clear all OneLapFit integration data
     user_integrations.onelapfit_token = None
+    user_integrations.onelapfit_region = None
 
     # Commit the changes to the database
     db.commit()
