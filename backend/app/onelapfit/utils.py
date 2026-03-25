@@ -69,8 +69,22 @@ def create_signature(path: str, params: dict) -> str:
     # Build sign string: path?query_string&key=api_key
     sign_string = f"{path}?{query_string}&key={ONELAPFIT_API_KEY}"
     
+    core_logger.print_to_log(
+        f"OneLapFit signature: Path: {path}"
+    )
+    core_logger.print_to_log(
+        f"OneLapFit signature: Query string: {query_string}"
+    )
+    core_logger.print_to_log(
+        f"OneLapFit signature: Full sign string: {sign_string}"
+    )
+    
     # MD5 hash
     signature = hashlib.md5(sign_string.encode('utf-8')).hexdigest()
+    
+    core_logger.print_to_log(
+        f"OneLapFit signature: Generated signature: {signature}"
+    )
     
     return signature
 
@@ -162,6 +176,9 @@ async def get_region_code(email: str) -> str:
                     detail="No region code returned from OneLapFit",
                 )
             
+            # Convert region to string if it's a number
+            region_code = str(region_code)
+            
             core_logger.print_to_log(
                 f"OneLapFit region: Got region code: {region_code}"
             )
@@ -221,6 +238,10 @@ async def login_onelapfit(email: str, password: str) -> tuple[str, str]:
             "timestamp": str(timestamp)
         }
         
+        core_logger.print_to_log(
+            f"OneLapFit login: Creating signature with params: {params}"
+        )
+        
         signature = create_signature(path, params)
         
         async with httpx.AsyncClient() as client:
@@ -234,6 +255,13 @@ async def login_onelapfit(email: str, password: str) -> tuple[str, str]:
                 "timestamp": timestamp,
                 "sign": signature
             }
+            
+            core_logger.print_to_log(
+                f"OneLapFit login: Query params: {query_params}"
+            )
+            core_logger.print_to_log(
+                f"OneLapFit login: Region header: {region_code}"
+            )
             
             response = await client.post(
                 f"{ONELAPFIT_API_BASE}/login",
