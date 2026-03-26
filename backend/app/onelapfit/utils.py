@@ -421,8 +421,17 @@ async def fetch_onelapfit_activities(
         core_logger.print_to_log(
             f"OneLapFit activities: Fetching activities from {start_time} to {end_time}"
         )
+        core_logger.print_to_log(
+            f"OneLapFit activities: Request params: {request_params}"
+        )
         
         async with httpx.AsyncClient() as client:
+            # Build URL manually for logging
+            url = f"{ONELAPFIT_API_BASE}/record/riding/list"
+            core_logger.print_to_log(
+                f"OneLapFit activities: Full URL: {url}?start_time={start_time}&end_time={end_time}&nonce={nonce}&timestamp={timestamp}&sign={signature}"
+            )
+            
             response = await client.get(
                 f"{ONELAPFIT_API_BASE}/record/riding/list",
                 params=request_params,
