@@ -399,13 +399,10 @@ async def fetch_onelapfit_activities(
         nonce = generate_nonce()
         timestamp = int(time.time())
         
-        # Build params for signing (all query params plus nonce and timestamp)
+        # Build params for signing (only start_time, end_time, nonce, timestamp)
         params = {
             "start_time": str(start_time),
             "end_time": str(end_time),
-            "p": str(page),
-            "source": "all",
-            "data_type": "all",
             "nonce": nonce,
             "timestamp": str(timestamp)
         }
@@ -416,9 +413,6 @@ async def fetch_onelapfit_activities(
         request_params = {
             "start_time": start_time,
             "end_time": end_time,
-            "p": page,
-            "source": "all",
-            "data_type": "all",
             "nonce": nonce,
             "timestamp": timestamp,
             "sign": signature
