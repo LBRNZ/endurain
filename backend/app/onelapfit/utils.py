@@ -32,14 +32,14 @@ ONELAPFIT_API_KEY = "6b14dcd729a8234487734f50c6335995"
 def generate_nonce() -> str:
     """
     Generate a random nonce for request signing.
-    6 random bytes → Base64 encoded → URL-encoded.
+    6 random bytes → Base64 encoded.
     
     Returns:
-        URL-encoded nonce string
+        Base64-encoded nonce string (not URL-encoded)
     """
     random_bytes = secrets.token_bytes(6)
     nonce_base64 = base64.b64encode(random_bytes).decode('ascii')
-    return urllib.parse.quote(nonce_base64, safe='')
+    return nonce_base64
 
 
 def create_signature(path: str, params: dict) -> str:
@@ -56,13 +56,11 @@ def create_signature(path: str, params: dict) -> str:
     # Sort params alphabetically by key
     sorted_keys = sorted(params.keys())
     
-    # Build query string (values should be decoded/unescaped)
+    # Build query string
     query_parts = []
     for key in sorted_keys:
         value = params[key]
-        # Decode URL-encoded values for signing
-        decoded_value = urllib.parse.unquote(str(value))
-        query_parts.append(f"{key}={decoded_value}")
+        query_parts.append(f"{key}={value}")
     
     query_string = "&".join(query_parts)
     
